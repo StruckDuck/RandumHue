@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Color Randomizer Secret App</title>
+  <!-- Manifest and iOS meta tags -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RandumHue" />
+  <link rel="apple-touch-icon" href="https://static.wixstatic.com/media/da145f_deba8a40e15a43a1a23409e184719833~mv2.png" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #2f2f2f;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    #start-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: transparent;
+      border: 2px solid white;
+      color: white;
+      text-transform: uppercase;
+      font-size: 24px;
+      padding: 15px 30px;
+      cursor: pointer;
+    }
+    #left-button, #right-button {
+      position: absolute;
+      top: 0;
+      width: 50%;
+      height: 100%;
+      z-index: 10;
+    }
+    #left-button {
+      left: 0;
+    }
+    #right-button {
+      right: 0;
+    }
+    #secret-indicator {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <button id="start-button">START</button>
+  <div id="left-button" style="display: none;"></div>
+  <div id="right-button" style="display: none;"></div>
+  <div id="secret-indicator"></div>
+
+  <script>
+    const colorBank = ["Black", "Blue", "Green", "Red", "White", "Yellow", "Purple", "Orange", "Grey"];
+    const nonPurpleColors = colorBank.filter(c => c !== "Purple");
+
+    let clickCount = 0;
+    let secretIndex = 0;
+    const secretSequence = ["Black", "Blue", "Green", "Red"];
+    let binaryCodeArray = ["", "", "", ""];
+    let inSecretPhase = false;
+    let postSecret = false;
+    let lastColor = null;
+
+    const body = document.body;
+    const startBtn = document.getElementById("start-button");
+    const leftBtn = document.getElementById("left-button");
+    const rightBtn = document.getElementById("right-button");
+    const secretIndicator = document.getElementById("secret-indicator");
+
+    function getRandomColor(excludePurple = false) {
+      const bank = excludePurple ? nonPurpleColors : colorBank;
+      let newColor;
+      do {
+        newColor = bank[Math.floor(Math.random() * bank.length)];
+      } while (newColor === lastColor);
+      lastColor = newColor;
+      return newColor;
+    }
+
+    function setBackground(color) {
+      body.style.backgroundColor = color;
+      lastColor = color;
+    }
+
+    function beginSecretPhase() {
+      inSecretPhase = true;
+      secretIndex = 0;
+      binaryCodeArray = ["", "", "", ""];
+      leftBtn.style.display = "block";
+      rightBtn.style.display = "block";
+      setBackground(secretSequence[secretIndex]);
+    }
+
+    function endSecretPhase() {
+      inSecretPhase = false;
+      postSecret = true;
+      leftBtn.style.display = "none";
+      rightBtn.style.display = "none";
+      const binaryCode = binaryCodeArray.reverse().join("");
+      revealSecretColor(binaryCode);
+    }
+
+    function revealSecretColor(binaryCode) {
+      let n = parseInt(binaryCode, 2);
+      if (n < 1 || n > 9) n = 1;
+      const index = n - 1;
+      const color = colorBank[index];
+      if (color === "Red") {
+        setBackground(getRandomColor(false));
+        secretIndicator.style.backgroundColor = "red";
+        secretIndicator.style.display = "block";
+      } else {
+        setBackground(color);
+        secretIndicator.style.display = "none";
+      }
+      console.log("Binary code:", binaryCode, "=> Color:", color);
+    }
+
+    function handleMainClick() {
+      clickCount++;
+      if (clickCount <= 3) {
+        setBackground(getRandomColor(true));
+      } else if (clickCount === 4) {
+        setBackground("Purple");
+      } else if (clickCount === 5) {
+        beginSecretPhase();
+      } else if (postSecret) {
+        setBackground(getRandomColor(false));
+      }
+    }
+
+    startBtn.addEventListener("click", () => {
+      startBtn.style.display = "none";
+      handleMainClick();
+      body.addEventListener("click", handleMainClick);
+    });
+
+    function handleSecretInput(bit) {
+      if (!inSecretPhase) return;
+      binaryCodeArray[secretIndex] = bit;
+      secretIndex++;
+
+      if (secretIndex < secretSequence.length) {
+        setBackground(secretSequence[secretIndex]);
+      } else {
+        endSecretPhase();
+      }
+    }
+
+    leftBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleSecretInput("0");
+    });
+
+    rightBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleSecretInput("1");
+    });
+  </script>
+</body>
+</html>
