@@ -14,7 +14,7 @@
     }
     #app {
       width: 100vw;
-      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -40,7 +40,7 @@
       top: 0;
       bottom: 0;
       width: 50vw;
-      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
       z-index: 1;
     }
     #left {
@@ -59,6 +59,13 @@
   </div>
 
   <script>
+    // Fix 100vh for mobile
+    function setVH() {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }
+    setVH();
+    window.addEventListener('resize', setVH);
+
     const COLORS = ["Black", "Blue", "Green", "Red", "White", "Yellow", "Purple", "Orange", "Grey"];
     const SECRET_SEQUENCE = ["Black", "Blue", "Green", "Red"];
     const COLOR_MAP = {
