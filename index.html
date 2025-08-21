@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Color Reveal App</title>
   <style>
+    /* Safety: if any stale markup exists, kill any #toast visually */
+    #toast { display: none !important; }
+
     :root { --vh: 1vh; }
 
     html, body {
@@ -21,6 +24,11 @@
 
     #app {
       width: 100vw;
+      /* Fallback for older browsers */
+      height: 100vh;
+      /* Modern, correct unit that ignores Safari's shrinking URL bar */
+      height: 100dvh;
+      /* Last-resort JS-driven custom prop for older iOS (overridden if not needed) */
       height: calc(var(--vh) * 100);
       display: flex;
       justify-content: center;
@@ -50,6 +58,9 @@
       top: 0;
       bottom: 0;
       width: 50vw;
+      /* Keep in sync with app's height fallbacks */
+      height: 100vh;
+      height: 100dvh;
       height: calc(var(--vh) * 100);
       z-index: 1;
       opacity: 0;              /* fully invisible */
@@ -67,12 +78,26 @@
   </div>
 
   <script>
+    // Safety shim: if any stale code still calls showToast, make it a no-op
+    window.showToast = function () {};
+
     // ---------- Mobile 100vh fix ----------
     function setVH() {
-      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      try {
+        const vv = window.visualViewport;
+        const h = vv ? vv.height : window.innerHeight;
+        document.documentElement.style.setProperty('--vh', `${h * 0.01}px`);
+      } catch (e) {
+        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      }
+    }px`);
     }
     setVH();
     window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', () => setTimeout(setVH, 100));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', setVH);
+    }
 
     // ---------- Color mapping (1–9). Others -> Pink (warning) ----------
     const TABLE_COLOR_MAP = {
