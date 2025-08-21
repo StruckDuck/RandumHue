@@ -44,7 +44,7 @@
       border-radius: 12px;
     }
 
-    /* Secret buttons / visual zones — kept for optional overlay layout, but fully invisible */
+    /* Secret buttons / visual zones — fully invisible */
     #left, #right {
       position: absolute;
       top: 0;
@@ -57,25 +57,6 @@
     }
     #left { left: 0; }
     #right { right: 0; }
-
-    /* Toast */
-    #toast {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      background: rgba(0,0,0,0.75);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 14px;
-      line-height: 1.35;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.35s ease;
-      z-index: 9999;
-      white-space: pre-line;
-    }
-    #toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -84,7 +65,6 @@
     <div id="left" aria-hidden="true"></div>
     <div id="right" aria-hidden="true"></div>
   </div>
-  <div id="toast" role="status" aria-live="polite"></div>
 
   <script>
     // ---------- Mobile 100vh fix ----------
@@ -108,16 +88,16 @@
     };
 
     // Input colors (fixed preset sequence) — taps on these screens record bits
-    const INPUT_ORDER = ["Black", "Blue", "Green", "Red"]; // display order
+    const INPUT_ORDER = ["Black", "Blue", "Green", "Red"];
     const INPUT_SET = new Set(INPUT_ORDER);
 
     // Random palette: only working colors (Pink is never random)
     const RANDOM_COLORS = Object.values(TABLE_COLOR_MAP);
 
     // ---------- State ----------
-    let tapIndex = 0;                 // increments with each tap
-    let previousColor = null;         // last shown color (string)
-    let currentColor = "Black";       // current background color (capitalized)
+    let tapIndex = 0;
+    let previousColor = null;
+    let currentColor = "Black";
     let bitsByColor = { Black: null, Blue: null, Green: null, Red: null };
     let decodedColor = null;
     let decodedDecimal = null;
@@ -125,7 +105,6 @@
     // ---------- Elements ----------
     const app = document.getElementById('app');
     const startBtn = document.getElementById('startBtn');
-    const toast = document.getElementById('toast');
 
     // ---------- Utilities ----------
     function showColor(color) {
@@ -148,7 +127,7 @@
       bitsByColor = { Black: null, Blue: null, Green: null, Red: null };
       decodedColor = null;
       decodedDecimal = null;
-      showColor(getRandomColor(["Purple", ...INPUT_ORDER])); // warm-up color, never an input color
+      showColor(getRandomColor(["Purple", ...INPUT_ORDER]));
     }
 
     function allBitsCaptured() {
@@ -156,39 +135,24 @@
     }
 
     function computeDecode() {
-      const orderedBits = INPUT_ORDER.map(c => bitsByColor[c]); // [Black, Blue, Green, Red]
-      const reversedBits = orderedBits.slice().reverse();       // Red..Black
+      const orderedBits = INPUT_ORDER.map(c => bitsByColor[c]);
+      const reversedBits = orderedBits.slice().reverse();
       const binStr = reversedBits.join('');
       const decimal = parseInt(binStr, 2);
       decodedDecimal = decimal;
       decodedColor = TABLE_COLOR_MAP[decimal] || "Pink";
-
-      showToast(
-        `Bits (Black,Blue,Green,Red): ${orderedBits.join('')}\n` +
-        `Reversed: ${binStr} = ${decimal}\n` +
-        `Decoded: ${decodedColor}`
-      );
     }
 
-    function showToast(message) {
-      toast.textContent = message;
-      toast.classList.add('show');
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => toast.classList.remove('show'), 3200);
-    }
-
-    // Determine the next color to show after each tap
     function nextColorForTap(idx) {
-      if (idx <= 3) return getRandomColor(["Purple", ...INPUT_ORDER]);                    // warm-up
-      if (idx === 4) return "Purple";                                                    // cue
-      if (idx >= 5 && idx <= 8) return INPUT_ORDER[idx - 5];                             // inputs
-      if (idx === 9) return getRandomColor(["Pink", ...INPUT_ORDER, decodedColor, previousColor]); // spacer
-      if (idx === 10) return decodedColor || "Pink";                                     // reveal
-      return getRandomColor([]);                                                         // free play
+      if (idx <= 3) return getRandomColor(["Purple", ...INPUT_ORDER]);
+      if (idx === 4) return "Purple";
+      if (idx >= 5 && idx <= 8) return INPUT_ORDER[idx - 5];
+      if (idx === 9) return getRandomColor(["Pink", ...INPUT_ORDER, decodedColor, previousColor]);
+      if (idx === 10) return decodedColor || "Pink";
+      return getRandomColor([]);
     }
 
     function maybeRecordBitForCurrentColor(bit) {
-      // Record once per input color screen (by COLOR, not tap count)
       if (INPUT_SET.has(currentColor) && bitsByColor[currentColor] === null) {
         bitsByColor[currentColor] = bit;
         if (allBitsCaptured()) computeDecode();
@@ -196,24 +160,17 @@
     }
 
     function handleTap(side) {
-      const bit = side === 'right' ? 1 : 0; // Right=1, Left=0
-
-      // 1) Record based on current screen color
+      const bit = side === 'right' ? 1 : 0;
       maybeRecordBitForCurrentColor(bit);
-
-      // 2) Advance routine
       tapIndex += 1;
       const next = nextColorForTap(tapIndex);
       showColor(next);
-
-      // 3) Safety: entering reveal without computed decode
       if (tapIndex === 9 && !decodedColor) {
         if (allBitsCaptured()) {
           computeDecode();
         } else {
           decodedColor = "Pink";
           decodedDecimal = null;
-          showToast("Missing bit(s). Showing Pink as warning.");
         }
       }
     }
@@ -226,8 +183,7 @@
 
     // Unified pointer/touch/mouse handler on the whole app
     const unifiedHandler = (ev) => {
-      if (startBtn.style.display !== 'none') return; // not started
-
+      if (startBtn.style.display !== 'none') return;
       let x = null;
       if (ev.type.startsWith('touch')) {
         const t = ev.touches && ev.touches[0];
@@ -238,7 +194,6 @@
       } else {
         return;
       }
-
       const rect = app.getBoundingClientRect();
       const isLeft = (x - rect.left) < rect.width / 2;
       handleTap(isLeft ? 'left' : 'right');
