@@ -21,12 +21,13 @@
 
     #app {
       width: 100vw;
+      height: 100vh;
+      height: 100dvh;
       height: calc(var(--vh) * 100);
       display: flex;
       justify-content: center;
       align-items: center;
       position: relative;
-      cursor: pointer;
       transition: background-color 1s ease;
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
@@ -35,25 +36,27 @@
     }
 
     #startBtn {
-      z-index: 2;
+      z-index: 3; /* higher than overlays */
       padding: 16px 24px;
       border: 2px solid rgba(255,255,255,0.9);
       color: #fff;
       background: rgba(0,0,0,0.35);
       font-size: 18px;
       border-radius: 12px;
+      position: relative;
     }
 
-    /* Secret buttons / visual zones — fully invisible */
     #left, #right {
       position: absolute;
       top: 0;
       bottom: 0;
       width: 50vw;
+      height: 100vh;
+      height: 100dvh;
       height: calc(var(--vh) * 100);
       z-index: 1;
-      opacity: 0;              /* fully invisible */
-      pointer-events: none;    /* clicks handled on #app */
+      opacity: 0;
+      pointer-events: none;
     }
     #left { left: 0; }
     #right { right: 0; }
@@ -67,14 +70,22 @@
   </div>
 
   <script>
-    // ---------- Mobile 100vh fix ----------
     function setVH() {
-      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      try {
+        const vv = window.visualViewport;
+        const h = vv ? vv.height : window.innerHeight;
+        document.documentElement.style.setProperty('--vh', `${h * 0.01}px`);
+      } catch (e) {
+        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      }
     }
     setVH();
     window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', () => setTimeout(setVH, 100));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', setVH);
+    }
 
-    // ---------- Color mapping (1–9). Others -> Pink (warning) ----------
     const TABLE_COLOR_MAP = {
       1: "Black",
       2: "Blue",
@@ -87,14 +98,10 @@
       9: "Grey",
     };
 
-    // Input colors (fixed preset sequence) — taps on these screens record bits
     const INPUT_ORDER = ["Black", "Blue", "Green", "Red"];
     const INPUT_SET = new Set(INPUT_ORDER);
-
-    // Random palette: only working colors (Pink is never random)
     const RANDOM_COLORS = Object.values(TABLE_COLOR_MAP);
 
-    // ---------- State ----------
     let tapIndex = 0;
     let previousColor = null;
     let currentColor = "Black";
@@ -102,11 +109,9 @@
     let decodedColor = null;
     let decodedDecimal = null;
 
-    // ---------- Elements ----------
     const app = document.getElementById('app');
     const startBtn = document.getElementById('startBtn');
 
-    // ---------- Utilities ----------
     function showColor(color) {
       app.style.backgroundColor = color.toLowerCase();
       previousColor = currentColor;
@@ -175,13 +180,12 @@
       }
     }
 
-    // ---------- Start ----------
-    startBtn.addEventListener('click', () => {
+    startBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation(); // ensure app handler doesn't interfere
       startBtn.style.display = 'none';
       reset();
     });
 
-    // Unified pointer/touch/mouse handler on the whole app
     const unifiedHandler = (ev) => {
       if (startBtn.style.display !== 'none') return;
       let x = null;
