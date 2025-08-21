@@ -1,119 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Color Reveal App</title>
-  <style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Color Reveal App</title>
+<style>
     :root { --vh: 1vh; }
 
-    html, body {
-      margin: 0;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
+html, body {
+margin: 0;
+      padding: 0;
+height: 100%;
+width: 100%;
+overflow: hidden;
+      font-family: sans-serif;
+      background-color: black;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
       background-color: #000;
       -webkit-user-select: none;
       user-select: none;
       -webkit-touch-callout: none;
-    }
+}
 
-    #app {
-      width: 100vw;
+#app {
+width: 100vw;
       height: 100vh;
-      height: 100dvh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
       height: calc(var(--vh) * 100);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-      transition: background-color 1s ease;
-      box-sizing: border-box;
+display: flex;
+justify-content: center;
+align-items: center;
+      background-color: black;
+      color: white;
+      font-size: 3em;
+      cursor: pointer;
+position: relative;
+      cursor: pointer;
+transition: background-color 1s ease;
+box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
       background-color: black;
-    }
+}
 
-    #startBtn {
-      z-index: 3; /* higher than overlays */
+#startBtn {
+z-index: 2;
+      padding: 1em 2em;
+      background-color: white;
+      color: black;
+      border: none;
+      border-radius: 10px;
+      font-size: 1em;
+      cursor: pointer;
       padding: 16px 24px;
       border: 2px solid rgba(255,255,255,0.9);
       color: #fff;
       background: rgba(0,0,0,0.35);
       font-size: 18px;
       border-radius: 12px;
-      position: relative;
-    }
+}
+    .half {
 
+    /* Secret buttons / visual zones — kept for optional overlay layout, but fully invisible */
     #left, #right {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 50vw;
+position: absolute;
+top: 0;
+bottom: 0;
+width: 50vw;
       height: 100vh;
-      height: 100dvh;
       height: calc(var(--vh) * 100);
-      z-index: 1;
-      opacity: 0;
-      pointer-events: none;
+z-index: 1;
+      opacity: 0;              /* fully invisible */
+      pointer-events: none;    /* clicks handled on #app */
+}
+    #left {
+      left: 0;
     }
+    #right {
+      right: 0;
     #left { left: 0; }
     #right { right: 0; }
-  </style>
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.35;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+      z-index: 9999;
+      white-space: pre-line;
+}
+    #toast.show { opacity: 1; }
+</style>
 </head>
 <body>
+  <div id="app">
+    <button id="startBtn">START</button>
+    <div id="left" class="half"></div>
+    <div id="right" class="half"></div>
   <div id="app" aria-label="Color Reveal App">
     <button id="startBtn" type="button" aria-label="Start routine">Start</button>
     <div id="left" aria-hidden="true"></div>
     <div id="right" aria-hidden="true"></div>
-  </div>
+</div>
+  <div id="toast" role="status" aria-live="polite"></div>
 
-  <script>
+<script>
+    const COLORS = ["Black", "Blue", "Green", "Red", "White", "Yellow", "Purple", "Orange", "Grey"];
+    const SECRET_SEQUENCE = ["Black", "Blue", "Green", "Red"];
+    const COLOR_MAP = {
+    // ---------- Mobile 100vh fix ----------
     function setVH() {
-      try {
-        const vv = window.visualViewport;
-        const h = vv ? vv.height : window.innerHeight;
-        document.documentElement.style.setProperty('--vh', `${h * 0.01}px`);
-      } catch (e) {
-        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-      }
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     }
     setVH();
     window.addEventListener('resize', setVH);
-    window.addEventListener('orientationchange', () => setTimeout(setVH, 100));
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', setVH);
-    }
 
+    // ---------- Color mapping (1–9). Others -> Pink (warning) ----------
     const TABLE_COLOR_MAP = {
-      1: "Black",
-      2: "Blue",
-      3: "Green",
-      4: "Red",
-      5: "White",
-      6: "Yellow",
-      7: "Purple",
-      8: "Orange",
+1: "Black",
+2: "Blue",
+3: "Green",
+@@ -77,90 +104,153 @@
+6: "Yellow",
+7: "Purple",
+8: "Orange",
+      9: "Grey"
       9: "Grey",
-    };
+};
 
-    const INPUT_ORDER = ["Black", "Blue", "Green", "Red"];
+    let clickCount = 0;
+    let binaryInput = [];
+    let previousColor = null;
+    let decodedColor = null;
+    let inputStart = false;
+    // Input colors (fixed preset sequence) — taps on these screens record bits
+    const INPUT_ORDER = ["Black", "Blue", "Green", "Red"]; // display order
     const INPUT_SET = new Set(INPUT_ORDER);
+
+    const app = document.getElementById("app");
+    const startBtn = document.getElementById("startBtn");
+    const leftDiv = document.getElementById("left");
+    const rightDiv = document.getElementById("right");
+    // Random palette: only working colors (Pink is never random)
     const RANDOM_COLORS = Object.values(TABLE_COLOR_MAP);
 
-    let tapIndex = 0;
-    let previousColor = null;
-    let currentColor = "Black";
+    function getRandomColor(exclude = []) {
+      let available = COLORS.filter(c => !exclude.includes(c));
+      return available[Math.floor(Math.random() * available.length)];
+    }
+    // ---------- State ----------
+    let tapIndex = 0;                 // increments with each tap
+    let previousColor = null;         // last shown color (string)
+    let currentColor = "Black";       // current background color (capitalized)
     let bitsByColor = { Black: null, Blue: null, Green: null, Red: null };
     let decodedColor = null;
     let decodedDecimal = null;
 
+    // ---------- Elements ----------
     const app = document.getElementById('app');
     const startBtn = document.getElementById('startBtn');
+    const toast = document.getElementById('toast');
 
-    function showColor(color) {
-      app.style.backgroundColor = color.toLowerCase();
+    // ---------- Utilities ----------
+function showColor(color) {
+app.style.backgroundColor = color.toLowerCase();
+      previousColor = color;
       previousColor = currentColor;
       currentColor = color;
     }
@@ -123,16 +182,36 @@
       const available = RANDOM_COLORS.filter(c => !hardExclusions.has(c) && c !== previousColor);
       const pool = available.length ? available : RANDOM_COLORS.filter(c => c !== previousColor);
       return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function reset() {
+      clickCount = 0;
+      binaryInput = [];
+      decodedColor = null;
+      tapIndex = 0;
+previousColor = null;
+      inputStart = false;
     }
 
-    function reset() {
-      tapIndex = 0;
-      previousColor = null;
+    function handleClick(side) {
+      clickCount++;
+
+      if (clickCount <= 3) {
+        // Random colors (not Purple, not duplicate)
+        let color = getRandomColor(["Purple", previousColor]);
+        showColor(color);
+      } else if (clickCount === 4) {
+        showColor("Purple");
+      } else if (clickCount >= 5 && clickCount <= 8) {
+        let color = SECRET_SEQUENCE[clickCount - 5];
+        showColor(color);
+        if (clickCount >= 6 && clickCount <= 8) {
+          binaryInput.push(side === 'right' ? 1 : 0);
       currentColor = "Black";
       bitsByColor = { Black: null, Blue: null, Green: null, Red: null };
       decodedColor = null;
       decodedDecimal = null;
-      showColor(getRandomColor(["Purple", ...INPUT_ORDER]));
+      showColor(getRandomColor(["Purple", ...INPUT_ORDER])); // warm-up color, never an input color
     }
 
     function allBitsCaptured() {
@@ -140,24 +219,39 @@
     }
 
     function computeDecode() {
-      const orderedBits = INPUT_ORDER.map(c => bitsByColor[c]);
-      const reversedBits = orderedBits.slice().reverse();
+      const orderedBits = INPUT_ORDER.map(c => bitsByColor[c]); // [Black, Blue, Green, Red]
+      const reversedBits = orderedBits.slice().reverse();       // Red..Black
       const binStr = reversedBits.join('');
       const decimal = parseInt(binStr, 2);
       decodedDecimal = decimal;
       decodedColor = TABLE_COLOR_MAP[decimal] || "Pink";
+
+      showToast(
+        `Bits (Black,Blue,Green,Red): ${orderedBits.join('')}\n` +
+        `Reversed: ${binStr} = ${decimal}\n` +
+        `Decoded: ${decodedColor}`
+      );
     }
 
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 3200);
+    }
+
+    // Determine the next color to show after each tap
     function nextColorForTap(idx) {
-      if (idx <= 3) return getRandomColor(["Purple", ...INPUT_ORDER]);
-      if (idx === 4) return "Purple";
-      if (idx >= 5 && idx <= 8) return INPUT_ORDER[idx - 5];
-      if (idx === 9) return getRandomColor(["Pink", ...INPUT_ORDER, decodedColor, previousColor]);
-      if (idx === 10) return decodedColor || "Pink";
-      return getRandomColor([]);
+      if (idx <= 3) return getRandomColor(["Purple", ...INPUT_ORDER]);                    // warm-up
+      if (idx === 4) return "Purple";                                                    // cue
+      if (idx >= 5 && idx <= 8) return INPUT_ORDER[idx - 5];                             // inputs
+      if (idx === 9) return getRandomColor(["Pink", ...INPUT_ORDER, decodedColor, previousColor]); // spacer
+      if (idx === 10) return decodedColor || "Pink";                                     // reveal
+      return getRandomColor([]);                                                         // free play
     }
 
     function maybeRecordBitForCurrentColor(bit) {
+      // Record once per input color screen (by COLOR, not tap count)
       if (INPUT_SET.has(currentColor) && bitsByColor[currentColor] === null) {
         bitsByColor[currentColor] = bit;
         if (allBitsCaptured()) computeDecode();
@@ -165,29 +259,66 @@
     }
 
     function handleTap(side) {
-      const bit = side === 'right' ? 1 : 0;
+      const bit = side === 'right' ? 1 : 0; // Right=1, Left=0
+
+      // 1) Record based on current screen color
       maybeRecordBitForCurrentColor(bit);
+
+      // 2) Advance routine
       tapIndex += 1;
       const next = nextColorForTap(tapIndex);
       showColor(next);
+
+      // 3) Safety: entering reveal without computed decode
       if (tapIndex === 9 && !decodedColor) {
         if (allBitsCaptured()) {
           computeDecode();
         } else {
           decodedColor = "Pink";
           decodedDecimal = null;
-        }
-      }
-    }
+          showToast("Missing bit(s). Showing Pink as warning.");
+}
+      } else if (clickCount === 9) {
+        // Intermediate color
+        const binaryStr = binaryInput.reverse().join('');
+        const decimal = parseInt(binaryStr, 2);
+        decodedColor = COLOR_MAP[decimal] || "Black"; // fallback
+        console.log("Binary Input:", binaryStr, "→", decimal);
+        console.log("Decoded Color:", decodedColor);
 
-    startBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation(); // ensure app handler doesn't interfere
+        let color = getRandomColor(["Red", decodedColor, previousColor]);
+        showColor(color);
+      } else if (clickCount === 10) {
+        showColor(decodedColor);
+      } else {
+        // After reveal, random colors from full palette
+        let color = getRandomColor([]);
+        showColor(color);
+}
+}
+
+    startBtn.addEventListener("click", () => {
+      startBtn.style.display = "none";
+    // ---------- Start ----------
+    startBtn.addEventListener('click', () => {
       startBtn.style.display = 'none';
-      reset();
-    });
+reset();
+      showColor(getRandomColor(["Purple"]));
+      clickCount = 1;
+});
 
+    leftDiv.addEventListener("click", () => {
+      if (startBtn.style.display === "none") {
+        handleClick("left");
+      }
+    });
+    // Unified pointer/touch/mouse handler on the whole app
     const unifiedHandler = (ev) => {
-      if (startBtn.style.display !== 'none') return;
+      if (startBtn.style.display !== 'none') return; // not started
+
+    rightDiv.addEventListener("click", () => {
+      if (startBtn.style.display === "none") {
+        handleClick("right");
       let x = null;
       if (ev.type.startsWith('touch')) {
         const t = ev.touches && ev.touches[0];
@@ -197,7 +328,9 @@
         x = ev.clientX;
       } else {
         return;
-      }
+}
+    });
+
       const rect = app.getBoundingClientRect();
       const isLeft = (x - rect.left) < rect.width / 2;
       handleTap(isLeft ? 'left' : 'right');
@@ -210,6 +343,6 @@
       app.addEventListener('touchstart', unifiedHandler, { passive: false });
       app.addEventListener('mousedown', unifiedHandler);
     }
-  </script>
+</script>
 </body>
 </html>
